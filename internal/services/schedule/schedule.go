@@ -3,39 +3,72 @@ package schedule
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"github.com/google/uuid"
 	"github.com/hesoyamTM/apphelper-schedule/internal/models"
 	"github.com/hesoyamTM/apphelper-sso/pkg/logger"
 	"go.uber.org/zap"
 )
 
 type ScheduleStorage interface {
-	CreateSchedule(ctx context.Context, groupId, studentId, trainerId int64, date time.Time) error
-	ProvideSchedules(ctx context.Context, trainerId, studentId int64) ([]models.Schedule, error)
+	CreateSchedule(ctx context.Context, sched *models.Schedule) error
+	ProvideSchedules(ctx context.Context, trainerId, studentId uuid.UUID) ([]*models.Schedule, error)
+	DeleteSchedule(ctx context.Context, groupId, trainerId uuid.UUID) error
 }
 
 type GroupStorage interface {
-	ProvideGroup(ctx context.Context, groupId int64) (models.Group, error)
+	ProvideGroup(ctx context.Context, groupId uuid.UUID) (*models.Group, error)
+}
+
+type Redpanda interface {
+	ScheduleCreatedEvent(ctx context.Context, schedule *models.Schedule) error
 }
 
 type Schedule struct {
 	db  ScheduleStorage
 	gDB GroupStorage
+
+	calendarManager *CalendarManager
+	redpanda        Redpanda
 }
 
-func New(ctx context.Context, db ScheduleStorage, gDB GroupStorage) *Schedule {
+func New(ctx context.Context, db ScheduleStorage, gDB GroupStorage, calendarManager *CalendarManager, redpanda Redpanda) *Schedule {
 	return &Schedule{
-		db:  db,
-		gDB: gDB,
+		db:              db,
+		gDB:             gDB,
+		calendarManager: calendarManager,
+		redpanda:        redpanda,
 	}
 }
 
-func (s *Schedule) CreateSchedule(ctx context.Context, groupId, trainerId, studentId int64, date time.Time) error {
+func (s *Schedule) CreateSchedule(ctx context.Context, sched *models.Schedule) error {
 	const op = "schedule.CreateSchedule"
 	log := logger.GetLoggerFromCtx(ctx)
 
-	if err := s.db.CreateSchedule(ctx, groupId, studentId, trainerId, date); err != nil {
+	event := &models.CalendarEvent{
+		Title: sched.Title,
+		Start: sched.Start,
+		End:   sched.End,
+	}
+
+	// begin TX
+	if err := s.calendarManager.CreateEvent(ctx, sched.TrainerId, sched.GroupId, event); err != nil {
+		log.Error(ctx, "failed to create event", zap.Error(err))
+
+		// TODO: error
+
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if err := s.calendarManager.CreateEvent(ctx, sched.StudentId, sched.GroupId, event); err != nil {
+		log.Error(ctx, "failed to create event", zap.Error(err))
+
+		// TODO: error
+
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if err := s.db.CreateSchedule(ctx, sched); err != nil {
 		log.Error(ctx, "failed to create schedule", zap.Error(err))
 
 		// TODO: error
@@ -43,10 +76,19 @@ func (s *Schedule) CreateSchedule(ctx context.Context, groupId, trainerId, stude
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
+	if err := s.redpanda.ScheduleCreatedEvent(ctx, sched); err != nil {
+		log.Error(ctx, "failed to send schedule created event", zap.Error(err))
+
+		// TODO: error
+
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	// end TX
+
 	return nil
 }
 
-func (s *Schedule) CreateScheduleForGroup(ctx context.Context, groupId, trainerId int64, date time.Time) error {
+func (s *Schedule) CreateScheduleForGroup(ctx context.Context, groupId uuid.UUID, sched *models.Schedule) error {
 	const op = "schedule.CreateScheduleForGroup"
 	log := logger.GetLoggerFromCtx(ctx)
 
@@ -59,8 +101,32 @@ func (s *Schedule) CreateScheduleForGroup(ctx context.Context, groupId, trainerI
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
+	event := &models.CalendarEvent{
+		Title: sched.Title,
+		Start: sched.Start,
+		End:   sched.End,
+	}
+
+	if err := s.calendarManager.CreateEvent(ctx, sched.TrainerId, groupId, event); err != nil {
+		log.Error(ctx, "failed to create event", zap.Error(err))
+
+		// TODO: error
+
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
 	for _, student := range group.Students {
-		if err := s.db.CreateSchedule(ctx, groupId, student, trainerId, date); err != nil {
+		if err := s.calendarManager.CreateEvent(ctx, student, groupId, event); err != nil {
+			log.Error(ctx, "failed to create event", zap.Error(err))
+
+			// TODO: error
+
+			return fmt.Errorf("%s: %w", op, err)
+		}
+
+		sched.StudentId = student
+
+		if err := s.db.CreateSchedule(ctx, sched); err != nil {
 			log.Error(ctx, "failed to create schedule", zap.Error(err))
 
 			// TODO: error
@@ -72,7 +138,7 @@ func (s *Schedule) CreateScheduleForGroup(ctx context.Context, groupId, trainerI
 	return nil
 }
 
-func (s *Schedule) GetSchedules(ctx context.Context, groupId, trainerId, studentId int64) ([]models.Schedule, error) {
+func (s *Schedule) GetSchedules(ctx context.Context, groupId, trainerId, studentId uuid.UUID) ([]*models.Schedule, error) {
 	const op = "schedule.GetSchedules"
 	log := logger.GetLoggerFromCtx(ctx)
 
@@ -86,4 +152,42 @@ func (s *Schedule) GetSchedules(ctx context.Context, groupId, trainerId, student
 	}
 
 	return schedules, nil
+}
+
+func (s *Schedule) DeleteSchedule(ctx context.Context, groupId, trainerId uuid.UUID) error {
+	const op = "schedule.DeleteSchedule"
+	log := logger.GetLoggerFromCtx(ctx)
+
+	if err := s.db.DeleteSchedule(ctx, groupId, trainerId); err != nil {
+		log.Error(ctx, "failed to delete schedule", zap.Error(err))
+
+		// TODO: error
+
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+func (s *Schedule) LoginURL(ctx context.Context, userID uuid.UUID) string {
+	return s.calendarManager.LoginURL(ctx, userID)
+}
+
+func (s *Schedule) Authorize(ctx context.Context, userId uuid.UUID, authcode, state string) error {
+	const op = "schedule.Authorize"
+	log := logger.GetLoggerFromCtx(ctx)
+
+	if err := s.calendarManager.Authorize(ctx, userId, authcode, state); err != nil {
+		log.Error(ctx, "failed to authorize", zap.Error(err))
+
+		// TODO: error
+
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	return nil
+}
+
+func (s *Schedule) IsAuthorized(ctx context.Context, userId uuid.UUID) bool {
+	return s.calendarManager.IsAuthorized(ctx, userId)
 }

@@ -5,28 +5,30 @@ import (
 	"flag"
 	"log"
 	"os"
+	"time"
 
+	"github.com/hesoyamTM/apphelper-notification/pkg/redpanda"
+	"github.com/hesoyamTM/apphelper-schedule/internal/clients"
+	"github.com/hesoyamTM/apphelper-schedule/internal/storage/psql"
+	"github.com/hesoyamTM/apphelper-schedule/internal/storage/redis"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Env  string `yaml:"env" env-required:"true" env:"ENV"`
-	Grpc GRPC   `yaml:"grpc"`
-	Psql PSQL   `yaml:"psql"`
+	Env      string        `yaml:"env" env-required:"true" env:"ENV"`
+	StateTTL time.Duration `yaml:"state-ttl" env-required:"true" env:"STATE_TTL"`
+
+	Grpc           GRPC                      `yaml:"grpc"`
+	Psql           psql.PsqlConfig           `yaml:"psql"`
+	Redis          redis.RedisConfig         `yaml:"redis"`
+	GoogleCalendar clients.GoogleCalendarCfg `yaml:"google-calendar"`
+	Redpanda       redpanda.RedpandaConfig   `yaml:"redpanda"`
 }
 
 type GRPC struct {
 	Host string `yaml:"host" env-required:"true" env:"GRPC_HOST"`
 	Port int    `yaml:"port" env-required:"true" env:"GRPC_PORT"`
-}
-
-type PSQL struct {
-	Host     string `yaml:"host" env-required:"true" env:"PSQL_HOST"`
-	Port     int    `yaml:"port" env-required:"true" env:"PSQL_PORT"`
-	User     string `yaml:"user" env-required:"true" env:"PSQL_USER"`
-	Password string `yaml:"password" env-required:"true" env:"PSQL_PASSWORD"`
-	DB       string `yaml:"db" env-required:"true" env:"PSQL_DATABASE"`
 }
 
 func fetchConfigPath() string {

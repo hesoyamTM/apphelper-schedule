@@ -1,9 +1,11 @@
 package models
 
+import "github.com/google/uuid"
+
 type Group struct {
-	Id        int64
+	Id        uuid.UUID
 	Name      string
-	TrainerId int64
-	Students  []int64
+	TrainerId uuid.UUID
+	Students  []uuid.UUID
 	Link      string
 }

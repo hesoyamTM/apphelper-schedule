@@ -23,26 +23,15 @@ func main() {
 	log := logger.GetLoggerFromCtx(ctx)
 	log.Debug(ctx, "logger is working")
 
-	gOpts := app.GrpcOpts{
-		Host: cfg.Grpc.Host,
-		Port: cfg.Grpc.Port,
-	}
-
-	pOpts := app.PsqlOpts{
-		Host:     cfg.Psql.Host,
-		Port:     cfg.Psql.Port,
-		User:     cfg.Psql.User,
-		Password: cfg.Psql.Password,
-		DB:       cfg.Psql.DB,
-	}
-
-	application := app.New(ctx, gOpts, pOpts)
+	application := app.New(ctx, cfg)
 	go application.GrpcApp.MustRun(ctx)
+	go application.Redpanda.Start(ctx)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
 	<-stop
 
 	application.GrpcApp.Stop(ctx)
+	application.Redpanda.Stop(ctx)
 	log.Info(ctx, "application stopped")
 }

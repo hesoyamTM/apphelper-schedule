@@ -17,6 +17,8 @@ func (s *Storage) CreateSchedule(ctx context.Context, sched *models.Schedule) er
 	query := `INSERT INTO schedules (group_id, title, student_id, trainer_id, start_date, end_date)
 	VALUES ($1, $2, $3, $4, $5, $6)`
 
+	logger.GetLoggerFromCtx(ctx).Debug(ctx, fmt.Sprintf("start_date: %v, end_date: %v", sched.Start, sched.End))
+
 	if _, err := s.db.Exec(ctx, query, sched.GroupId, sched.Title, sched.StudentId, sched.TrainerId, sched.Start, sched.End); err != nil {
 		// TODO: error
 
@@ -67,6 +69,8 @@ func (s *Storage) provideSchedules(ctx context.Context, queryFunc func() (pgx.Ro
 		if err := rows.Scan(&schedule.GroupName, &groupId, &schedule.Title, &studentId, &trainerId, &schedule.Start, &schedule.End, &schedule.Id); err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
+
+		logger.GetLoggerFromCtx(ctx).Debug(ctx, fmt.Sprintf("start_date: %v, end_date: %v", schedule.Start, schedule.End))
 
 		if groupId.Valid {
 			schedule.GroupId = groupId.UUID

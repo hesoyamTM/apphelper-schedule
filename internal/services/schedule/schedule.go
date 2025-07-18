@@ -3,6 +3,7 @@ package schedule
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hesoyamTM/apphelper-schedule/internal/models"
@@ -24,15 +25,24 @@ type Redpanda interface {
 	ScheduleCreatedEvent(ctx context.Context, schedule *models.Schedule) error
 }
 
+type CalendarManagerInterface interface {
+	LoginURL(ctx context.Context, userID uuid.UUID) string
+	Authorize(ctx context.Context, userId uuid.UUID, authcode, state string) error
+	IsAuthorized(ctx context.Context, userId uuid.UUID) bool
+	CreateEvent(ctx context.Context, userId, groupId uuid.UUID, event *models.CalendarEvent) error
+	GetEvents(ctx context.Context, userId uuid.UUID, minTime, maxTime time.Time) (*[]*models.CalendarEvent, error)
+	DeleteEvent(ctx context.Context, userId uuid.UUID, group_id uuid.UUID, eventId string) error
+}
+
 type Schedule struct {
 	db  ScheduleStorage
 	gDB GroupStorage
 
-	calendarManager *CalendarManager
+	calendarManager CalendarManagerInterface
 	redpanda        Redpanda
 }
 
-func New(ctx context.Context, db ScheduleStorage, gDB GroupStorage, calendarManager *CalendarManager, redpanda Redpanda) *Schedule {
+func New(ctx context.Context, db ScheduleStorage, gDB GroupStorage, calendarManager CalendarManagerInterface, redpanda Redpanda) *Schedule {
 	return &Schedule{
 		db:              db,
 		gDB:             gDB,
@@ -51,21 +61,16 @@ func (s *Schedule) CreateSchedule(ctx context.Context, sched *models.Schedule) e
 		End:   sched.End,
 	}
 
-	// begin TX
 	if err := s.calendarManager.CreateEvent(ctx, sched.TrainerId, sched.GroupId, event); err != nil {
 		log.Error(ctx, "failed to create event", zap.Error(err))
 
 		// TODO: error
-
-		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	if err := s.calendarManager.CreateEvent(ctx, sched.StudentId, sched.GroupId, event); err != nil {
 		log.Error(ctx, "failed to create event", zap.Error(err))
 
 		// TODO: error
-
-		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	if err := s.db.CreateSchedule(ctx, sched); err != nil {
@@ -83,7 +88,6 @@ func (s *Schedule) CreateSchedule(ctx context.Context, sched *models.Schedule) e
 
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	// end TX
 
 	return nil
 }
@@ -112,6 +116,11 @@ func (s *Schedule) CreateScheduleForGroup(ctx context.Context, groupId uuid.UUID
 
 		// TODO: error
 
+		// return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if err := s.redpanda.ScheduleCreatedEvent(ctx, sched); err != nil {
+		log.Error(ctx, "failed to send schedule created event", zap.Error(err))
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
@@ -121,7 +130,7 @@ func (s *Schedule) CreateScheduleForGroup(ctx context.Context, groupId uuid.UUID
 
 			// TODO: error
 
-			return fmt.Errorf("%s: %w", op, err)
+			// return fmt.Errorf("%s: %w", op, err)
 		}
 
 		sched.StudentId = student
@@ -131,6 +140,24 @@ func (s *Schedule) CreateScheduleForGroup(ctx context.Context, groupId uuid.UUID
 
 			// TODO: error
 
+			return fmt.Errorf("%s: %w", op, err)
+		}
+
+		if err := s.redpanda.ScheduleCreatedEvent(ctx, &models.Schedule{
+			GroupId:   groupId,
+			GroupName: group.Name,
+			StudentId: student,
+			Title:     sched.Title,
+			Start:     sched.Start,
+			End:       sched.End,
+		}); err != nil {
+			log.Error(ctx, "failed to send schedule created event", zap.Error(err))
+			return fmt.Errorf("%s: %w", op, err)
+		}
+	}
+	if len(group.Students) == 0 {
+		if err := s.db.CreateSchedule(ctx, sched); err != nil {
+			log.Error(ctx, "failed to create schedule", zap.Error(err))
 			return fmt.Errorf("%s: %w", op, err)
 		}
 	}

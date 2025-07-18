@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS public.schedules (
     group_id uuid NOT NULL,
     student_id uuid NOT NULL,
     trainer_id uuid NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL
+    start_date timestamp NOT NULL,
+    end_date timestamp NOT NULL,
 );
 

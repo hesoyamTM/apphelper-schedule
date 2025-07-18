@@ -11,6 +11,7 @@ import (
 	"github.com/hesoyamTM/apphelper-schedule/internal/clients"
 	"github.com/hesoyamTM/apphelper-schedule/internal/storage/psql"
 	"github.com/hesoyamTM/apphelper-schedule/internal/storage/redis"
+	"github.com/hesoyamTM/apphelper-sso/pkg/observability"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
 )
@@ -19,11 +20,13 @@ type Config struct {
 	Env      string        `yaml:"env" env-required:"true" env:"ENV"`
 	StateTTL time.Duration `yaml:"state-ttl" env-required:"true" env:"STATE_TTL"`
 
-	Grpc           GRPC                      `yaml:"grpc"`
-	Psql           psql.PsqlConfig           `yaml:"psql"`
-	Redis          redis.RedisConfig         `yaml:"redis"`
-	GoogleCalendar clients.GoogleCalendarCfg `yaml:"google-calendar"`
-	Redpanda       redpanda.RedpandaConfig   `yaml:"redpanda"`
+	Grpc                GRPC                      `yaml:"grpc"`
+	Psql                psql.PsqlConfig           `yaml:"psql"`
+	RedisSessionStorage redis.RedisConfig         `yaml:"redis-session-storage"`
+	RedisStateStorage   redis.RedisConfig         `yaml:"redis-state-storage"`
+	GoogleCalendar      clients.GoogleCalendarCfg `yaml:"google-calendar"`
+	Redpanda            redpanda.RedpandaConfig   `yaml:"redpanda"`
+	Observability       observability.OtelConfig  `yaml:"observability"`
 }
 
 type GRPC struct {

@@ -113,6 +113,7 @@ func (s *serverAPI) GetSchedule(ctx context.Context, req *schedulev1.GetSchedule
 	schedulesResp := make([]*schedulev1.Schedule, len(schedules))
 	for i := range schedules {
 		sched := schedulev1.Schedule{
+			Id:        schedules[i].Id.String(),
 			GroupId:   schedules[i].GroupId.String(),
 			GroupName: schedules[i].GroupName,
 			TrainerId: schedules[i].TrainerId.String(),

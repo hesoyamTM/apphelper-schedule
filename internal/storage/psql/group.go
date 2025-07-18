@@ -31,7 +31,7 @@ func (s *Storage) AddToGroup(ctx context.Context, studentId uuid.UUID, link stri
 	query := `
 	UPDATE groups SET student_ids = array_append(student_ids, $1)
 	WHERE invitation_link = $2
-	AND NOT $1 = ANY(student_ids::int[])
+	AND NOT $1 = ANY(student_ids::uuid[])
 	AND $1 != trainer_id
 	RETURNING id, name, trainer_id, student_ids, invitation_link`
 
@@ -118,7 +118,7 @@ func (s *Storage) provideGroups(ctx context.Context, trainerId, studentId uuid.U
 	query := `
 	SELECT id, name, trainer_id, student_ids, invitation_link
 	FROM groups
-	WHERE trainer_id = $1 AND $2 = ANY(student_ids::int[])`
+	WHERE trainer_id = $1 AND $2 = ANY(student_ids::uuid[])`
 
 	rows, err := s.db.Query(ctx, query, trainerId, studentId)
 	if err != nil {
@@ -176,7 +176,7 @@ func (s *Storage) provideGroupsByStudent(ctx context.Context, studentId uuid.UUI
 	query := `
 	SELECT id, name, trainer_id, student_ids, invitation_link
 	FROM groups
-	WHERE $1 = ANY(student_ids::int[])`
+	WHERE $1 = ANY(student_ids::uuid[])`
 
 	rows, err := s.db.Query(ctx, query, studentId)
 	if err != nil {

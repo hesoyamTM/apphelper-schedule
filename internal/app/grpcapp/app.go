@@ -7,7 +7,10 @@ import (
 
 	"github.com/hesoyamTM/apphelper-schedule/internal/grpc/schedule"
 	"github.com/hesoyamTM/apphelper-sso/pkg/logger"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
+	opentracing "google.golang.org/grpc/experimental/opentelemetry"
+	"google.golang.org/grpc/stats/opentelemetry"
 )
 
 type App struct {
@@ -22,9 +25,25 @@ func New(
 	host string,
 	port int,
 	shedServ schedule.ScheduleService,
-	groupServ schedule.GroupService) *App {
+	groupServ schedule.GroupService,
+) *App {
+	options := opentelemetry.ServerOption(
+		opentelemetry.Options{
+			MetricsOptions: opentelemetry.MetricsOptions{
+				MeterProvider: otel.GetMeterProvider(),
+				Metrics:       opentelemetry.DefaultMetrics(),
+			},
+			TraceOptions: opentracing.TraceOptions{
+				TracerProvider:    otel.GetTracerProvider(),
+				TextMapPropagator: otel.GetTextMapPropagator(),
+			},
+		},
+	)
 
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(logger.LoggingInterceptor(ctx)))
+	grpcServer := grpc.NewServer(
+		options,
+		grpc.UnaryInterceptor(logger.LoggingInterceptor(ctx)),
+	)
 
 	schedule.RegisterServer(grpcServer, shedServ, groupServ)
 

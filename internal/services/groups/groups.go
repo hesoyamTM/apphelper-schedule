@@ -89,8 +89,7 @@ func (g *Groups) GetGroups(ctx context.Context, trainerId, studentId uuid.UUID) 
 
 	groups, err := g.db.ProvideGroups(ctx, trainerId, studentId)
 	if err != nil {
-		log.Error(ctx, "failed to create schedule", zap.Error(err))
-
+		log.Error(ctx, "failed to provide groups", zap.Error(err))
 		// TODO: error
 
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -104,7 +103,7 @@ func (g *Groups) DeleteGroup(ctx context.Context, groupId, trainerId uuid.UUID) 
 	log := logger.GetLoggerFromCtx(ctx)
 
 	if err := g.db.DeleteGroup(ctx, groupId, trainerId); err != nil {
-		log.Error(ctx, "failed to create schedule", zap.Error(err))
+		log.Error(ctx, "failed to delete group", zap.Error(err))
 
 		// TODO: error
 
@@ -120,7 +119,7 @@ func (g *Groups) GetGroup(ctx context.Context, groupId uuid.UUID) (*models.Group
 
 	group, err := g.db.ProvideGroup(ctx, groupId)
 	if err != nil {
-		log.Error(ctx, "failed to create schedule", zap.Error(err))
+		log.Error(ctx, "failed to provide group", zap.Error(err))
 
 		// TODO: error
 

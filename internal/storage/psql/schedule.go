@@ -28,21 +28,21 @@ func (s *Storage) CreateSchedule(ctx context.Context, sched *models.Schedule) er
 
 func (s *Storage) ProvideSchedules(ctx context.Context, trainerId, studentId uuid.UUID) ([]*models.Schedule, error) {
 	if trainerId != uuid.Nil && studentId != uuid.Nil {
-		query := `SELECT groups.name, schedules.group_id, schedules.title, schedules.student_id, schedules.trainer_id, schedules.start_date, schedules.end_date
+		query := `SELECT groups.name, schedules.group_id, schedules.title, schedules.student_id, schedules.trainer_id, schedules.start_date, schedules.end_date, schedules.id
 		FROM schedules
 		INNER JOIN groups ON groups.id = schedules.group_id
 		WHERE schedules.trainer_id = $1 AND schedules.student_id = $2`
 		return s.provideSchedules(ctx, func() (pgx.Rows, error) { return s.db.Query(ctx, query, trainerId, studentId) })
 	}
 	if trainerId != uuid.Nil {
-		query := `SELECT groups.name, schedules.group_id, schedules.title, schedules.student_id, schedules.trainer_id, schedules.start_date, schedules.end_date
+		query := `SELECT groups.name, schedules.group_id, schedules.title, schedules.student_id, schedules.trainer_id, schedules.start_date, schedules.end_date, schedules.id
 		FROM schedules
 		INNER JOIN groups ON groups.id = schedules.group_id
 		WHERE schedules.trainer_id = $1`
 		return s.provideSchedules(ctx, func() (pgx.Rows, error) { return s.db.Query(ctx, query, trainerId) })
 	}
 	if studentId != uuid.Nil {
-		query := `SELECT groups.name, schedules.group_id, schedules.title, schedules.student_id, schedules.trainer_id, schedules.start_date, schedules.end_date
+		query := `SELECT groups.name, schedules.group_id, schedules.title, schedules.student_id, schedules.trainer_id, schedules.start_date, schedules.end_date, schedules.id
 		FROM schedules
 		INNER JOIN groups ON groups.id = schedules.group_id
 		WHERE schedules.student_id = $1`
@@ -64,7 +64,7 @@ func (s *Storage) provideSchedules(ctx context.Context, queryFunc func() (pgx.Ro
 		var schedule models.Schedule
 		var groupId, studentId, trainerId uuid.NullUUID
 
-		if err := rows.Scan(&schedule.GroupName, &groupId, &schedule.Title, &studentId, &trainerId, &schedule.Start, &schedule.End); err != nil {
+		if err := rows.Scan(&schedule.GroupName, &groupId, &schedule.Title, &studentId, &trainerId, &schedule.Start, &schedule.End, &schedule.Id); err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 
@@ -95,7 +95,7 @@ func (s *Storage) provideSchedules(ctx context.Context, queryFunc func() (pgx.Ro
 func (s *Storage) DeleteSchedule(ctx context.Context, groupId, trainerId uuid.UUID) error {
 	const op = "psql.DeleteSchedule"
 
-	query := `DELETE FROM schedules WHERE group_id = $1 AND trainer_id = $2`
+	query := `DELETE FROM schedules WHERE id = $1 AND trainer_id = $2`
 
 	if _, err := s.db.Exec(ctx, query, groupId, trainerId); err != nil {
 		// TODO: error

@@ -7,6 +7,7 @@ import (
 )
 
 type Schedule struct {
+	Id        uuid.UUID `json:"id"`
 	Start     time.Time `json:"start"`
 	End       time.Time `json:"end"`
 	GroupName string    `json:"group_name"`

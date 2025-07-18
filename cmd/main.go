@@ -9,6 +9,7 @@ import (
 	"github.com/hesoyamTM/apphelper-schedule/internal/app"
 	"github.com/hesoyamTM/apphelper-schedule/internal/config"
 	"github.com/hesoyamTM/apphelper-sso/pkg/logger"
+	"github.com/hesoyamTM/apphelper-sso/pkg/observability"
 )
 
 func main() {
@@ -22,6 +23,16 @@ func main() {
 
 	log := logger.GetLoggerFromCtx(ctx)
 	log.Debug(ctx, "logger is working")
+
+	otelShutdown, err := observability.SetupOtelSDK(ctx, cfg.Observability)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := otelShutdown(ctx); err != nil {
+			panic(err)
+		}
+	}()
 
 	application := app.New(ctx, cfg)
 	go application.GrpcApp.MustRun(ctx)

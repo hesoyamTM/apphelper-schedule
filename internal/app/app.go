@@ -32,8 +32,9 @@ func New(ctx context.Context, cfg *config.Config) *App {
 	groupService := groups.New(ctx, db, redpanda)
 
 	calendarService := clients.New(ctx, cfg.GoogleCalendar)
-	sessionStorage := redis.New(cfg.Redis)
-	calendaerManager := schedule.NewCalendarManager(sessionStorage, sessionStorage, calendarService, db, groupService, cfg.StateTTL)
+	sessionStorage := redis.New(cfg.RedisSessionStorage)
+	stateStorage := redis.New(cfg.RedisStateStorage)
+	calendaerManager := schedule.NewCalendarManager(sessionStorage, stateStorage, calendarService, db, groupService, cfg.StateTTL)
 
 	scheduleService := schedule.New(ctx, db, db, calendaerManager, redpanda)
 
